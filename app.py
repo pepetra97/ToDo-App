@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
@@ -7,51 +7,45 @@ db = SQLAlchemy(app)
 
 class Todo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100), nullable=False)
-    completed = db.Column(db.Boolean, default=False)
+    task = db.Column(db.String(100), nullable=False)
+    done = db.Column(db.Boolean, default=False)
 
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "title": self.title,
-            "completed": self.completed
-        }
-
-@app.route("/todos", methods=["GET"])
-def get_todos():
+@app.route('/')
+def home():
     todos = Todo.query.all()
-    return jsonify([todo.to_dict() for todo in todos])
+    return render_template('index.html', todos=todos)
 
-@app.route("/todos", methods=["POST"])
-def create_todo():
-    data = request.get_json()
-    todo = Todo(title=data["title"])
-    db.session.add(todo)
+@app.route('/add', methods=['POST'])
+def add():
+    task = request.form.get('task')
+    new_todo = Todo(task=task, done=False)
+    db.session.add(new_todo)
     db.session.commit()
-    return jsonify(todo.to_dict()), 201
+    return redirect(url_for('home'))
 
-@app.route("/todos/<int:todo_id>", methods=["PUT"])
-def update_todo(todo_id):
-    data = request.get_json()
-    todo = Todo.query.get_or_404(todo_id)
-    todo.title = data["title"]
-    todo.completed = data["completed"]
+@app.route('/mark_done/<int:todo_id>')
+def mark_done(todo_id):
+    todo = Todo.query.get(todo_id)
+    todo.done = True
     db.session.commit()
-    return jsonify(todo.to_dict())
+    return redirect(url_for('home'))
 
-@app.route("/todos/<int:todo_id>", methods=["DELETE"])
-def delete_todo(todo_id):
-    todo = Todo.query.get_or_404(todo_id)
+@app.route('/delete/<int:todo_id>')
+def delete(todo_id):
+    todo = Todo.query.get(todo_id)
     db.session.delete(todo)
     db.session.commit()
-    return jsonify({"message": "Todo deleted"})
+    return redirect(url_for('home'))
 
-def main():
-    db.create_all()
-    app.run(debug=True)
+@app.route('/toggle_done/<int:todo_id>')
+def toggle_done(todo_id):
+    todo = Todo.query.get(todo_id)
+    todo.done = not todo.done
+    db.session.commit()
+    return redirect(url_for('home'))
+
 
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     app.run(debug=True)
-
